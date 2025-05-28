@@ -1,0 +1,69 @@
+name: Java CI with Maven
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Check if current commit is already tagged
+        id: check_tag
+        run: |
+          if git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+            echo "tagged=true" >> $GITHUB_OUTPUT
+          else
+            echo "tagged=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get tag
+        id: get_tag
+        run: |
+          last_tag=$(git describe --tags --abbrev=0)
+          echo "last_tag=$last_tag" >> $GITHUB_OUTPUT
+
+      - name: Bump patch version
+        id: bump
+        if: steps.check_tag.outputs.tagged == 'false'
+        run: |
+          latest=${{ steps.get_tag.outputs.last_tag }}
+          ver=${latest#v}
+          IFS='.' read -r major minor patch <<< "$ver"
+          patch=$((patch + 1))
+          bumped_version="v${major}.${minor}.${patch}"
+          echo "Bumped version: $bumped_version"
+          echo "bumped_version=$bumped_version" >> $GITHUB_OUTPUT
+
+      - name: Tag new version
+        if: steps.check_tag.outputs.tagged == 'false'
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git tag ${{ steps.bump.outputs.bumped_version }}
+          git push origin ${{ steps.bump.outputs.bumped_version }}
+
+      - name: Get latest tag
+        id: latest_tag
+        run: |
+          if ${{ steps.check_tag.outputs.tagged }}; then
+            echo "latest=${{ steps.get_tag.outputs.last_tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "latest=${{ steps.bump.outputs.bumped_version }}" >> $GITHUB_OUTPUT
+          fi
+  build:
+    needs: bump-version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use bumped version
+        run: |
+          echo "Using version: ${{ needs.bump_version.outputs.new_version }}"
