@@ -27,7 +27,7 @@ jobs:
             echo "tagged=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Get tag
+      - name: Get the last tag
         id: get_tag
         run: |
           last_tag=$(git describe --tags --abbrev=0)
